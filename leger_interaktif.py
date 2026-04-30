@@ -31,7 +31,7 @@ kelas_pilihan = st.sidebar.selectbox("Pilih Kelas:", daftar_kelas)
 
 # --- FITUR PENGUNCI KELAS ---
 # Kunci semua kelas kecuali VIII F
-if kelas_pilihan != "VIII F":
+if kelas_pilihan != "VIII-F":
     st.warning(f"🔒 Maaf, akses untuk Kelas {kelas_pilihan} saat ini sedang dikunci.")
     st.info("Saat ini hanya Kelas VIII F yang dapat diakses.")
     st.stop() # Perintah ini akan menghentikan seluruh kode di bawahnya agar tidak dieksekusi
