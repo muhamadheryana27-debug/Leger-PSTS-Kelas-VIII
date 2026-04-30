@@ -29,9 +29,16 @@ st.sidebar.header("⚙️ Pengaturan")
 daftar_kelas = sorted(df['Kelas'].dropna().unique())
 kelas_pilihan = st.sidebar.selectbox("Pilih Kelas:", daftar_kelas)
 
+# --- FITUR PENGUNCI KELAS ---
+# Kunci semua kelas kecuali VIII F
+if kelas_pilihan != "VIII F":
+    st.warning(f"🔒 Maaf, akses untuk Kelas {kelas_pilihan} saat ini sedang dikunci.")
+    st.info("Saat ini hanya Kelas VIII F yang dapat diakses.")
+    st.stop() # Perintah ini akan menghentikan seluruh kode di bawahnya agar tidak dieksekusi
+
+# (Kode di bawah ini tetap sama seperti sebelumnya)
 df_kelas = df[df['Kelas'] == kelas_pilihan].copy()
-df_kelas = df_kelas.sort_values(by='Total Nilai', ascending=False).reset_index(drop=True)
-df_kelas.index = df_kelas.index + 1 
+# ... dan seterusnya ...
 
 # --- FUNGSI UNDUH EXCEL ---
 def to_excel(df):
