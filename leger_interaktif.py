@@ -11,9 +11,17 @@ st.title("📊 Dashboard Evaluasi PSTS & Leger Kelas")
 # --- MEMBACA DAN MENGOLAH DATA ---
 @st.cache_data
 def load_data():
+    # Pastikan file ODS bernama database.ods
     df = pd.read_excel("database.ods", engine="odf", dtype={'NIP': str, 'NIS/NISN': str, 'Kelas': str})
+    
+    # Bersihkan spasi berlebih di nama kelas dan nama siswa (Penting untuk mencegah eror filter)
+    df['Kelas'] = df['Kelas'].astype(str).str.strip()
+    df['Nama'] = df['Nama'].astype(str).str.strip()
+    
+    # Daftar Mapel disesuaikan dengan file Anda (Menggunakan SENI)
     mapel = ['PAI', 'PPKn', 'B.IND', 'B.ING', 'MTK', 'IPA', 'IPS', 'SENI', 'PJOK', 'INF', 'B.SUN']
     
+    # Ubah nilai ke angka, jika kosong jadikan 0
     for m in mapel:
         df[m] = pd.to_numeric(df[m], errors='coerce').fillna(0)
         
@@ -30,15 +38,23 @@ daftar_kelas = sorted(df['Kelas'].dropna().unique())
 kelas_pilihan = st.sidebar.selectbox("Pilih Kelas:", daftar_kelas)
 
 # --- FITUR PENGUNCI KELAS ---
-# Kunci semua kelas kecuali VIII F
+# Kunci semua kelas kecuali VIII-F
 if kelas_pilihan != "VIII-F":
     st.warning(f"🔒 Maaf, akses untuk Kelas {kelas_pilihan} saat ini sedang dikunci.")
-    st.info("Saat ini hanya Kelas VIII F yang dapat diakses.")
-    st.stop() # Perintah ini akan menghentikan seluruh kode di bawahnya agar tidak dieksekusi
+    st.info("Saat ini hanya Kelas VIII-F yang dapat diakses.")
+    st.stop() # Menghentikan proses di bawahnya
 
-# (Kode di bawah ini tetap sama seperti sebelumnya)
+# --- PEMROSESAN DATA KELAS TERPILIH ---
 df_kelas = df[df['Kelas'] == kelas_pilihan].copy()
-# ... dan seterusnya ...
+
+# Pengecekan jika data kosong agar tidak eror
+if df_kelas.empty:
+    st.error(f"⚠️ Data untuk Kelas {kelas_pilihan} tidak ditemukan. Periksa penulisan kelas di file database.ods.")
+    st.stop()
+
+# Urutkan berdasarkan nilai tertinggi dan buat peringkat
+df_kelas = df_kelas.sort_values(by='Total Nilai', ascending=False).reset_index(drop=True)
+df_kelas.index = df_kelas.index + 1  # Index menjadi peringkat (mulai dari 1)
 
 # --- FUNGSI UNDUH EXCEL ---
 def to_excel(df):
@@ -47,15 +63,22 @@ def to_excel(df):
         df.to_excel(writer, index=False, sheet_name='Leger')
     return output.getvalue()
 
-# --- TABS (NAVIGASI) ---
-# Membagi halaman menjadi 3 tab agar lebih rapi
+# --- TABS (NAVIGASI HALAMAN) ---
 tab1, tab2, tab3 = st.tabs(["🏆 Top 10", "📋 Leger Lengkap", "👤 Profil Siswa"])
 
 # --- TAB 1: TOP 10 ---
 with tab1:
     st.header(f"Top 10 Siswa - Kelas {kelas_pilihan}")
     top_10 = df_kelas.head(10)
-    fig_bar = px.bar(top_10, x='Nama', y='Total Nilai', text='Total Nilai', color='Total Nilai', color_continuous_scale='Blues')
+    fig_bar = px.bar(
+        top_10, 
+        x='Nama', 
+        y='Total Nilai', 
+        text='Total Nilai', 
+        color='Total Nilai', 
+        color_continuous_scale='Blues'
+    )
+    fig_bar.update_traces(textposition='outside')
     st.plotly_chart(fig_bar, use_container_width=True)
 
 # --- TAB 2: LEGER LENGKAP ---
@@ -72,84 +95,74 @@ with tab2:
     )
     st.dataframe(df_kelas[kolom_tampil], use_container_width=True)
 
-# --- TAB 3: PROFIL SISWA (FITUR BARU) ---
+# --- TAB 3: PROFIL SISWA ---
 with tab3:
     st.header("Detail Prestasi Siswa")
     
-    # Dropdown untuk memilih siswa di kelas tersebut
     daftar_siswa = df_kelas['Nama'].tolist()
     siswa_pilihan = st.selectbox("Cari / Pilih Nama Siswa:", daftar_siswa)
     
     if siswa_pilihan:
-        # Ambil data spesifik siswa tersebut
-        data_siswa = df_kelas[df_kelas['Nama'] == siswa_pilihan].iloc[0]
-        
-        # Cari peringkat siswa di kelas
-        peringkat = df_kelas[df_kelas['Nama'] == siswa_pilihan].index[0]
-        
-        st.markdown("---")
-        
-        # Membagi layar menjadi dua kolom
-        col1, col2 = st.columns([1, 2])
-        
-        with col1:
-            st.subheader("Informasi Umum")
-            st.write(f"**Nama:** {data_siswa['Nama']}")
-            st.write(f"**NIS/NISN:** {data_siswa['NIS/NISN']}")
-            st.write(f"**Kelas:** {data_siswa['Kelas']}")
-            st.write(f"**Wali Kelas:** {data_siswa['Wali Kelas']}")
+        # Filter aman untuk siswa
+        mask = df_kelas['Nama'] == siswa_pilihan
+        if not df_kelas[mask].empty:
+            data_siswa = df_kelas[mask].iloc[0]
+            peringkat = df_kelas[mask].index[0]
             
-            st.markdown("<br>", unsafe_allow_html=True) # Spasi
+            st.markdown("---")
+            col1, col2 = st.columns([1, 2])
             
-            # Highlight Nilai
-            st.metric(label="Peringkat di Kelas", value=f"Ke-{peringkat} dari {len(df_kelas)}")
-            st.metric(label="Total Nilai", value=data_siswa['Total Nilai'])
-            st.metric(label="Rata-rata", value=data_siswa['Rata-rata'])
+            with col1:
+                st.subheader("Informasi Umum")
+                st.write(f"**Nama:** {data_siswa['Nama']}")
+                st.write(f"**NIS/NISN:** {data_siswa['NIS/NISN']}")
+                st.write(f"**Kelas:** {data_siswa['Kelas']}")
+                
+                # Mengambil wali kelas jika ada kolomnya, jika tidak abaikan error
+                wali_kelas = data_siswa.get('Wali Kelas', '-')
+                st.write(f"**Wali Kelas:** {wali_kelas}")
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                st.metric(label="Peringkat di Kelas", value=f"Ke-{peringkat} dari {len(df_kelas)}")
+                st.metric(label="Total Nilai", value=data_siswa['Total Nilai'])
+                st.metric(label="Rata-rata", value=data_siswa['Rata-rata'])
 
-        with col2:
-            st.subheader("Peta Kekuatan Nilai (Radar Chart)")
+            with col2:
+                st.subheader("Peta Kekuatan Nilai (Radar Chart)")
+                nilai_siswa = [data_siswa[m] for m in daftar_mapel]
+                
+                fig_radar = go.Figure()
+                fig_radar.add_trace(go.Scatterpolar(
+                    r=nilai_siswa + [nilai_siswa[0]],
+                    theta=daftar_mapel + [daftar_mapel[0]],
+                    fill='toself',
+                    name=siswa_pilihan,
+                    line_color='#4C72B0'
+                ))
+                
+                fig_radar.update_layout(
+                    polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
+                    showlegend=False,
+                    margin=dict(l=40, r=40, t=20, b=20)
+                )
+                st.plotly_chart(fig_radar, use_container_width=True)
+                
+            st.markdown("---")
+            st.subheader("Rincian Nilai & Status Ketuntasan")
             
-            # Menyiapkan data untuk Radar Chart
-            nilai_siswa = [data_siswa[m] for m in daftar_mapel]
+            rincian_data = []
+            for m in daftar_mapel:
+                nilai = data_siswa[m]
+                status = "✅ Tuntas" if nilai >= 71 else "❌ Belum Tuntas"
+                rincian_data.append({"Mata Pelajaran": m, "Nilai": nilai, "Status": status})
+                
+            df_rincian = pd.DataFrame(rincian_data)
+            jumlah_remedial = len(df_rincian[df_rincian['Status'] == "❌ Belum Tuntas"])
             
-            fig_radar = go.Figure()
-            fig_radar.add_trace(go.Scatterpolar(
-                r=nilai_siswa + [nilai_siswa[0]], # Ditutup ke titik awal
-                theta=daftar_mapel + [daftar_mapel[0]],
-                fill='toself',
-                name=siswa_pilihan,
-                line_color='#4C72B0'
-            ))
-            
-            fig_radar.update_layout(
-                polar=dict(
-                    radialaxis=dict(visible=True, range=[0, 100]) # Skala 0-100
-                ),
-                showlegend=False,
-                margin=dict(l=40, r=40, t=20, b=20)
-            )
-            st.plotly_chart(fig_radar, use_container_width=True)
-            
-        st.markdown("---")
-        
-        # Rincian Nilai dan Ketuntasan (KKM Asumsi 71)
-        st.subheader("Rincian Nilai & Status Ketuntasan")
-        
-        # Buat tabel kecil untuk rincian status
-        rincian_data = []
-        for m in daftar_mapel:
-            nilai = data_siswa[m]
-            status = "✅ Tuntas" if nilai >= 71 else "❌ Belum Tuntas"
-            rincian_data.append({"Mata Pelajaran": m, "Nilai": nilai, "Status": status})
-            
-        df_rincian = pd.DataFrame(rincian_data)
-        
-        # Hitung berapa mapel yang belum tuntas
-        jumlah_remedial = len(df_rincian[df_rincian['Status'] == "❌ Belum Tuntas"])
-        
-        if jumlah_remedial > 0:
-            st.warning(f"Siswa ini memiliki {jumlah_remedial} mata pelajaran di bawah KKM dan perlu bimbingan.")
-        else:
-            st.success("Siswa ini tuntas pada semua mata pelajaran. Pertahankan!")
-            
-        st.dataframe(df_rincian, use_container_width=True, hide_index=True)
+            if jumlah_remedial > 0:
+                st.warning(f"Siswa ini memiliki {jumlah_remedial} mata pelajaran di bawah KKM dan perlu bimbingan.")
+            else:
+                st.success("Siswa ini tuntas pada semua mata pelajaran. Pertahankan!")
+                
+            st.dataframe(df_rincian, use_container_width=True, hide_index=True)
